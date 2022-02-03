@@ -1,0 +1,92 @@
+@startuml
+'https://plantuml.com/class-diagram
+
+
+class Client {
+    -id: uint
+    -name: string
+    -surname: string
+    -address: string
+    -passport: string
+    -accounts: Set<BankAccount>
+}
+
+package Transactions {
+    class Transaction {
+        -id: <some id class>
+        -source: BankAccount
+        -destination: BankAccount
+        -moneyAmount: float
+        -type: TransactionType
+        -status: TransactionStatus
+    }
+    
+    enum TransactionType {
+        ToppingUp
+        Withdrawal
+        Transfer
+    }
+    
+    enum TransactionStatus {
+        Performed
+        Canceled
+    }
+    
+    Transaction -- TransactionType
+    Transaction -- TransactionStatus
+}
+
+
+package Accounts {
+    abstract class BankAccount {
+        -id: AccountId
+        -client: Client
+        -balance: float
+        -suspicious: bool
+        ==
+        +{abstract}Withdraw(moneyAmount: float): Transaction
+        +{abstract}TopUp(moneyAmount: float): Transaction
+        +{abstract}Transfer(moneyAmount: float, account: BankAccount): Transaction
+        +{abstract}FeeRequired(): bool
+        +{abstract}InterestRequired(): bool
+    }
+    
+    class DebitAccount 
+    class DepositAccount
+    class CreditAccount
+    
+    BankAccount <|-- DebitAccount
+    BankAccount <|-- DepositAccount
+    BankAccount <|-- CreditAccount
+    
+    enum AccountType {
+        Debit
+        Deposit
+        Credit
+    }
+    
+    class AccountId {
+        -bankId: uint
+        -accountType: accountType
+        -number: uint
+    }
+}
+
+package Banking {
+
+    class CentralBank {
+        -banks: Set<Bank>
+        ==
+        +CreateAndRegisterBank(...): Bank
+    }
+    
+    class Bank {
+        -id: uint
+        -clients: Set<Client>
+        -accounts: Set<BankAccount>
+    }
+    
+    CentralBank *-- Bank
+}
+
+@enduml

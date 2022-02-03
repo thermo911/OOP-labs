@@ -1,0 +1,147 @@
+@startuml
+'https://plantuml.com/class-diagram
+
+package Backups {
+
+    package Storage {
+        interface IBackupStorage {
+            +SaveRestorePoint(backupJobId: string, restorePointId: string, jobObjects: IEnumerable<JobObject>): string
+        }
+        
+        class LocalBackupStorage {
+            -zipArchiver: IZipArchiver
+            ..Properties..
+            WorkingDirectory: DirectoryInfo
+            ==
+            -{static}GetFilesFromJobObjects(jobObjects: IEnumerable<JobObject>): List<FileInfo>
+            -{static}ExtractZipToDirectory(byte[] zipBytes, string path)
+        }
+        
+        class RemoteBackupStorage {
+            -zipArchiver: IZipArchiver
+            -backupClient: BackupClient
+            ==
+            -{static}GetFilesFromJobObjects(jobObjects: IEnumerable<JobObject>): List<FileInfo>
+        }
+            
+        IBackupStorage <|.. LocalBackupStorage
+        IBackupStorage <|.. RemoteBackupStorage
+    }
+    
+    package Entities {
+             class BackupJob {
+                 -trackedJobObjects: HashSet<JobObject>
+                 -restorePoints: List<RestorePoint> 
+                 -backupStorage: IBackupStorage
+                 ..Properties..
+                 Id: string
+                 TrackedJobObjects: IReadOnlyCollection<JobObject>
+                 RestorePoints: IReadOnlyCollection<RestorePoint>
+                 ==
+                 +AddJobObject(jobObject: JobObject): void
+                 +RemoveJobObject(jobObject: JobObject): void
+                 +CreateAndSaveRestorePoint(restorePointId: string): RestorePoint
+             }
+             
+             class RestorePoint {
+                 -storedJobObjects: List<JobObject>
+                 ..Properties..
+                 Id: string
+                 StoredJobObjects: IReadOnlyCollection<JobObject>
+                 Path: string
+                 CreationDateTime: DateTime
+                 -{static}HasRestorePointWithId(restorePointId: string): bool
+             }
+             
+             class JobObject {
+                 -fullName: string
+                 ..Properties..
+                 FileInfo: FileInfo
+             }
+             
+             BackupJob *-- RestorePoint
+             BackupJob o-- JobObject
+             RestorePoint o-- JobObject
+         }
+    
+    package Archiving {
+        interface IZipArchiver {
+            +GetArchiveBytes(files: List<FileInfo>, archiveName: string): byte[]
+        }
+        
+        class SingleZipArchiver {
+        ==
+            -GetInnerBytes(files: List<FileInfo>): byte[]
+        }
+        
+        class SplitZipArchiver {
+        ==
+            -GetInnerBytes(file: FileInfo): byte[]
+        }
+        
+        IZipArchiver <|.. SingleZipArchiver
+        IZipArchiver <|.. SplitZipArchiver
+    }
+    
+    class BackupService {
+        -backupJobs: HashSet<BackupJob>
+        ..Properties..
+        WorkingDirectory: DirectoryInfo
+        BackupJobs: IReadOnlyCollection<BackupJob>
+        ==
+        +CreateAndRegisterBackupJob(id: string, storage: IBackupStorage): BackupJob
+    }
+    
+    BackupService *-- BackupJob
+    
+    IBackupStorage <-right- BackupJob
+    IZipArchiver <-up- LocalBackupStorage
+    IZipArchiver <-up- RemoteBackupStorage
+    
+}
+
+package BackupsNet {
+    enum BackupServerCommand {
+        Save = 0
+    }
+    
+    class BackupClient {
+        ..Properties..
+        HostName: string
+        Port: int
+        ==
+        +SendData(command: BackupServerCommand, data: byte[]): void
+    }
+    
+    class BackupServer {
+        -running: bool
+        ..Properties..
+        RootDirectory: DirectoryInfo
+        TcpListener: TcpListener
+        ListeningThread: Thread
+        ==
+        +Run(): void
+        +Stop(): void
+        -{static}GetZipDtoFromClientStream(networkStream: NetworkStream): ZipDto
+        -SaveDataFromZipDto(zipDto: ZipDto): void
+        -PerformCommandFromClient(client: TcpClient): void
+        -StartListening(): void
+    }
+    
+    class ZipDto {
+        ..Properties..
+        +DestinationFolder: string
+        +Data: byte[]
+    }
+    
+    BackupServerCommand -- BackupClient
+    ZipDto -- BackupClient
+    BackupServerCommand -- BackupServer
+    ZipDto -- BackupServer
+    
+}
+
+BackupClient <-- RemoteBackupStorage
+
+
+@enduml
